@@ -14,7 +14,7 @@ library(lodown)
 
 ## Examine microdata from 2016
 
-```{r}
+```{r,  include=FALSE}
 scf_cat <-
     get_catalog( "scf" ,
         output_dir = file.path( path.expand( "~" ) , "SCF" ) )
@@ -28,7 +28,7 @@ scf_cat <- lodown( "scf" , scf_cat )
 ## Analysis Examples with the survey library  
 
 
-```{r}
+```{r, include=FALSE}
 library(survey)
 library(mitools)
 
@@ -69,16 +69,105 @@ scf_design <-
                         "some college" , 
                         "college degree" 
                     ) 
+            ),
+        racecl4 = 
+            factor( 
+                racecl4 , 
+                labels = 
+                    c( 
+                        "White" , 
+                        "Black.AfricanAmer" , 
+                        "Hispanic.Latino" , 
+                        "Other" 
+                    ) 
             )
 
     )
+
+
+  
 ```
 
 ## Unweighted Counts
 Count the unweighted number of records in the survey sample, overall and by groups
 
+```{r}
+scf_MIcombine( with( scf_design , svyby( ~ one , ~ one , unwtd.count ) ) )
+
+scf_MIcombine( with( scf_design , svyby( ~ one , ~ hhsex , unwtd.count ) ) )
+
+scf_MIcombine( with( scf_design , svyby( ~ one , ~ racecl4 , unwtd.count ) ) )
+
+scf_MIcombine( with( scf_design , svyby( ~ one , ~ edcl , unwtd.count ) ) )
+
+```
 
 
+## Weighted Counts
+```{r}
+scf_MIcombine( with( scf_design , svytotal( ~ one ) ) )
+
+scf_MIcombine( with( scf_design ,
+    svyby( ~ one , ~ racecl4 , svytotal )
+) )
+
+```
 
 
+## Descriptive Statistics
+
+Calculate the mean (average) of a linear variable, overall and by groups:
+
+```{r}
+scf_MIcombine( with( scf_design , svymean( ~ networth ) ) )
+
+scf_MIcombine( with( scf_design ,
+    svyby( ~ networth , ~ racecl4 , svymean )
+) )
+```
+# Calculate the distribution of a categorical variable, overall and by groups:
+
+```{r}
+scf_MIcombine( with( scf_design , svymean( ~ edcl ) ) )
+
+scf_MIcombine( with( scf_design ,
+    svyby( ~ edcl , ~ racecl4 , svymean )
+) )
+
+```
+
+# Calculate the sum of a linear variable, overall and by groups:
+
+```{r}
+scf_MIcombine( with( scf_design , svytotal( ~ edcl ) ) )
+
+scf_MIcombine( with( scf_design ,
+    svyby( ~ edcl , ~ hhsex , svytotal )
+) )
+```
+
+#Calculate the median (50th percentile) of a linear variable, overall and by groups:
+
+```{r}
+scf_MIcombine( with( scf_design ,
+    svyquantile(
+        ~ networth ,
+        0.5 , se = TRUE , method = 'constant' , interval.type = 'quantile' 
+) ) )
+
+scf_MIcombine( with( scf_design ,
+    svyby(
+        ~ networth , ~ hhsex , svyquantile ,
+        0.5 , se = TRUE , method = 'constant' , interval.type = 'quantile' ,
+        keep.var = TRUE , ci = TRUE 
+) ) )
+```
+
+# Estimate a ratio:
+
+```{r}
+scf_MIcombine( with( scf_design ,
+    svyratio( numerator = ~ income , denominator = ~ networth )
+) )
+```
 
