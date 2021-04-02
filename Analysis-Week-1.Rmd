@@ -1,0 +1,84 @@
+---
+title: "Gap Analysis"
+author: "Caleb Aguiar"
+date: "4/1/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+#install.packages("remotes")
+#remotes::install_github("ajdamico/lodown")
+
+library(lodown)
+```
+
+## Examine microdata from 2016
+
+```{r}
+scf_cat <-
+    get_catalog( "scf" ,
+        output_dir = file.path( path.expand( "~" ) , "SCF" ) )
+
+
+scf_cat <- subset( scf_cat , year == 2016 )
+# download the microdata to your local computer
+scf_cat <- lodown( "scf" , scf_cat )
+```
+
+## Analysis Examples with the survey library  
+
+
+```{r}
+library(survey)
+library(mitools)
+
+scf_imp <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2016.rds" ) )
+
+scf_rw <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2016 rw.rds" ) )
+
+scf_design <- 
+    svrepdesign( 
+        weights = ~wgt , 
+        repweights = scf_rw[ , -1 ] , 
+        data = imputationList( scf_imp ) , 
+        scale = 1 ,
+        rscales = rep( 1 / 998 , 999 ) ,
+        mse = FALSE ,
+        type = "other" ,
+        combined.weights = TRUE
+    )
+```
+## Variable Recoding
+
+```{r}
+scf_design <- 
+    update( 
+        scf_design , 
+        
+        hhsex = factor( hhsex , labels = c( "male" , "female" ) ) ,
+        
+        married = as.numeric( married == 1 ) ,
+        
+        edcl = 
+            factor( 
+                edcl , 
+                labels = 
+                    c( 
+                        "less than high school" , 
+                        "high school or GED" , 
+                        "some college" , 
+                        "college degree" 
+                    ) 
+            )
+
+    )
+```
+
+## Unweighted Counts
+Count the unweighted number of records in the survey sample, overall and by groups
+
+
+
+
+
+
