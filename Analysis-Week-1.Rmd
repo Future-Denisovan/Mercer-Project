@@ -9,10 +9,14 @@ output: word_document
 #install.packages("remotes")
 #remotes::install_github("ajdamico/lodown")
 
-library(lodown)
+library(lodown) #R package to download large files 
+
+library(ggplot2)
 ```
 
-## Examine microdata from 2016
+## Load Survey of Consumer Finances
+
+Dataset here:https://www.federalreserve.gov/econres/scfindex.htm
 
 ```{r,  include=FALSE}
 scf_cat <-
@@ -20,21 +24,25 @@ scf_cat <-
         output_dir = file.path( path.expand( "~" ) , "SCF" ) )
 
 
-scf_cat <- subset( scf_cat , year == 2016 )
+scf_cat <- subset( scf_cat , year == 2019 )
 # download the microdata to your local computer
 scf_cat <- lodown( "scf" , scf_cat )
 ```
 
-## Analysis Examples with the survey library  
+## Prevent overestimation of standard error calculations in regression    
 
+Please review the following PDF for instructions on how to calculate correct standard errors. As a result of multiple imputation, the dataset you are downloading contains five times the number of actual observations. Failure to account for the imputations and the complex sample design will result in incorrect estimation of standard errors.
+https://www.federalreserve.gov/econres/files/Standard_Error_Documentation.pdf
+
+The following code accounts for imputation and sample variability error, and constructs a multiply-imputed, complex sample survey design. 
 
 ```{r, include=FALSE}
 library(survey)
 library(mitools)
 
-scf_imp <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2016.rds" ) )
+scf_imp <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2019.rds" ) )
 
-scf_rw <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2016 rw.rds" ) )
+scf_rw <- readRDS( file.path( path.expand( "~" ) , "SCF" , "scf 2019 rw.rds" ) )
 
 scf_design <- 
     svrepdesign( 
@@ -96,11 +104,17 @@ scf_MIcombine( with( scf_design , svyby( ~ one , ~ one , unwtd.count ) ) )
 
 scf_MIcombine( with( scf_design , svyby( ~ one , ~ hhsex , unwtd.count ) ) )
 
-scf_MIcombine( with( scf_design , svyby( ~ one , ~ racecl4 , unwtd.count ) ) )
+barplotdf<-scf_MIcombine( with( scf_design , svyby( ~ one , ~ racecl4 , unwtd.count ) ) )
 
 scf_MIcombine( with( scf_design , svyby( ~ one , ~ edcl , unwtd.count ) ) )
 
 ```
+
+```{r}
+barplot(barplotdf$coefficients)
+```
+
+
 
 
 ## Weighted Counts
@@ -114,60 +128,103 @@ scf_MIcombine( with( scf_design ,
 ```
 
 
-## Descriptive Statistics
+# Descriptive Statistics
 
-Calculate the mean (average) of a linear variable, overall and by groups:
+## Calculate the mean (average) of a linear variable, overall and by groups and then plot:
 
-```{r}
+```{r, include=FALSE}
 scf_MIcombine( with( scf_design , svymean( ~ networth ) ) )
 
-scf_MIcombine( with( scf_design ,
+networthdt<-scf_MIcombine( with( scf_design ,
     svyby( ~ networth , ~ racecl4 , svymean )
 ) )
-```
-# Calculate the distribution of a categorical variable, overall and by groups:
-
-```{r}
-scf_MIcombine( with( scf_design , svymean( ~ edcl ) ) )
-
-scf_MIcombine( with( scf_design ,
-    svyby( ~ edcl , ~ racecl4 , svymean )
-) )
 
 ```
 
-# Calculate the sum of a linear variable, overall and by groups:
-
 ```{r}
-scf_MIcombine( with( scf_design , svytotal( ~ edcl ) ) )
-
-scf_MIcombine( with( scf_design ,
-    svyby( ~ edcl , ~ hhsex , svytotal )
-) )
+options(scipen = 999) 
+barplot(networthdt$coefficients, names.arg = c("White", "Black", "Hispanic", "Other"), ylab = "Ave Net Worth", col = "Steel Blue")
 ```
+White families have more wealth than Black, Hispanic and other race families, on average.
 
-#Calculate the median (50th percentile) of a linear variable, overall and by groups:
+## Calculate the median by groups:
 
-```{r}
+```{r, include=FALSE}
 scf_MIcombine( with( scf_design ,
     svyquantile(
         ~ networth ,
         0.5 , se = TRUE , method = 'constant' , interval.type = 'quantile' 
 ) ) )
 
-scf_MIcombine( with( scf_design ,
+networthmedian<-scf_MIcombine( with( scf_design ,
     svyby(
-        ~ networth , ~ hhsex , svyquantile ,
+        ~ networth , ~ racecl4 , svyquantile ,
         0.5 , se = TRUE , method = 'constant' , interval.type = 'quantile' ,
         keep.var = TRUE , ci = TRUE 
 ) ) )
 ```
 
-# Estimate a ratio:
+```{r}
+barplot(networthmedian$coefficients, names.arg = c("White", "Black", "Hispanic", "Other"), ylab = "Median Net Worth", col = "Steel Blue")
+```
+
+White families have more wealth than Black, Hispanic and other race families, when looking at the median net worth, although it is less, which shows that extremely wealthy white families skew the results.
+
+
+
+
+
+
+## Calculate the distribution of a categorical variable, overall and by groups:
 
 ```{r}
-scf_MIcombine( with( scf_design ,
-    svyratio( numerator = ~ income , denominator = ~ networth )
+scf_MIcombine( with( scf_design , svymean( ~ edcl ) ) )
+
+edplotdt<-scf_MIcombine( with( scf_design ,
+    svyby( ~ edcl , ~ racecl4 , svymean )
 ) )
+
 ```
+```{r}
+par(mar=c(15,4,4,2))
+barplot(sort(edplotdt$coefficients, decreasing = TRUE), col = "Orange", las=2)
+
+```
+
+
+
+Function for ggplot and survey results
+Would like to use ggplot here, make the graphs cleaner.
+https://juba.github.io/questionr/reference/ggsurvey.html
+
+
+```{r}
+ggsurvey <- function(design = NULL, mapping = NULL, ...) {
+  if (!inherits(design, "survey.design")) {
+    stop("'design' should be a 'survey.design' object.")
+  }
+  if (!requireNamespace("survey", quietly = TRUE)) {
+    stop("survey package is required.")
+  }
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("ggplot2 package is required.")
+  }
+  data <- design$variables
+  data$.weights <- weights(design)
+  
+  if(is.null(mapping)) {
+    mapping <- ggplot2::aes()
+  }
+  
+  mapping$weight <- ggplot2::aes_string(weight = ".weights")$weight
+  
+  ggplot2::ggplot(data, mapping, ...)
+}
+```
+
+
+```{r}
+#ggsurvey(design = scf_design, mapping = aes(x = , y = ))
+```
+
 
